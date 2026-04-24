@@ -1,6 +1,8 @@
+from datetime import datetime, timezone
 from pathlib import Path
+from uuid import uuid4
 
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
@@ -8,6 +10,7 @@ app = FastAPI(title="Smart Kitchen API")
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 EXAMPLE_IMAGE_DIR = PROJECT_ROOT / "example_image"
+RECIPE_HISTORY: list[dict[str, object]] = []
 MISO_SOUP_RECIPE = """Classic Miso Soup
 
 Ingredients:
@@ -45,9 +48,27 @@ if EXAMPLE_IMAGE_DIR.exists():
     )
 
 
+def validate_health_answers(answers: dict[str, str]) -> None:
+    missing_labels = [label for label, value in answers.items() if not value.strip()]
+    if missing_labels:
+        missing = ", ".join(missing_labels)
+        raise HTTPException(
+            status_code=400,
+            detail=f"Please complete all health check fields before running the recipe demo: {missing}.",
+        )
+
+
 @app.get("/health")
 async def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.get("/history")
+async def get_history() -> dict[str, object]:
+    return {
+        "count": len(RECIPE_HISTORY),
+        "items": list(reversed(RECIPE_HISTORY)),
+    }
 
 
 @app.post("/upload")
@@ -61,7 +82,19 @@ async def upload_image(file: UploadFile = File(...)) -> dict[str, str | int]:
 
 
 @app.post("/recipe")
-async def create_recipe(files: list[UploadFile] = File(...)) -> dict[str, str | int | list[str]]:
+async def create_recipe(
+    current_condition: str = Form(...),
+    dietary_notes: str = Form(...),
+    craving: str = Form(...),
+    files: list[UploadFile] = File(...),
+) -> dict[str, object]:
+    health_check = {
+        "Current condition": current_condition,
+        "Dietary notes": dietary_notes,
+        "Today's craving": craving,
+    }
+    validate_health_answers(health_check)
+
     if len(files) != 3:
         raise HTTPException(status_code=400, detail="Please upload exactly 3 images.")
 
@@ -70,9 +103,15 @@ async def create_recipe(files: list[UploadFile] = File(...)) -> dict[str, str | 
         await file.read()
         filenames.append(file.filename or "unknown")
 
-    return {
+    history_item = {
+        "id": str(uuid4()),
+        "created_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "title": "Miso Soup Recipe",
         "message": "Fixed recipe generated without AI inference.",
-        "file_count": len(files),
         "filenames": filenames,
+        "health_check": health_check,
         "recipe": MISO_SOUP_RECIPE,
     }
+    RECIPE_HISTORY.append(history_item)
+
+    return history_item

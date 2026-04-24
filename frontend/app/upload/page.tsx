@@ -1,44 +1,55 @@
 "use client";
 
-import { ChangeEvent, useEffect, useMemo, useState } from "react";
+import { ChangeEvent, useMemo, useState } from "react";
 
 type UploadSlot = {
   file: File | null;
   previewUrl: string | null;
 };
 
-type RecipeResponse = {
-  file_count: number;
+type RecipeHistoryItem = {
+  created_at: string;
   filenames: string[];
+  health_check: Record<string, string>;
+  id: string;
   message: string;
   recipe: string;
+  title: string;
 };
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
-const SAMPLE_IMAGES = [
+const HEALTH_FIELDS = [
   {
-    label: "Sample Image 1",
-    src: `${API_BASE_URL}/example_image/gettyimages-1224945016-612x612.jpg`,
+    key: "currentCondition",
+    label: "Current condition",
+    placeholder: "Example: I want something warm and light because I feel tired today.",
   },
   {
-    label: "Sample Image 2",
-    src: `${API_BASE_URL}/example_image/gettyimages-1358353520-612x612.jpg`,
+    key: "dietaryNotes",
+    label: "Dietary notes",
+    placeholder: "Example: Please avoid spicy food and keep the seasoning gentle.",
   },
   {
-    label: "Sample Image 3",
-    src: `${API_BASE_URL}/example_image/gettyimages-1591806940-612x612.jpg`,
+    key: "craving",
+    label: "Today's craving",
+    placeholder: "Example: I want a comforting soup with a Japanese home-cooking feeling.",
   },
-];
+] as const;
 
 function createEmptySlots(): UploadSlot[] {
   return Array.from({ length: 3 }, () => ({ file: null, previewUrl: null }));
 }
 
 export default function UploadPage() {
+  const [healthForm, setHealthForm] = useState({
+    currentCondition: "",
+    dietaryNotes: "",
+    craving: "",
+  });
   const [slots, setSlots] = useState<UploadSlot[]>(createEmptySlots);
-  const [recipe, setRecipe] = useState("");
-  const [message, setMessage] = useState("");
+  const [recipeResult, setRecipeResult] = useState<RecipeHistoryItem | null>(null);
   const [error, setError] = useState("");
+  const [statusMessage, setStatusMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const selectedCount = useMemo(
@@ -46,15 +57,10 @@ export default function UploadPage() {
     [slots],
   );
 
-  useEffect(() => {
-    return () => {
-      slots.forEach((slot) => {
-        if (slot.previewUrl) {
-          URL.revokeObjectURL(slot.previewUrl);
-        }
-      });
-    };
-  }, [slots]);
+  function handleFieldChange(key: keyof typeof healthForm, value: string) {
+    setHealthForm((current) => ({ ...current, [key]: value }));
+    setError("");
+  }
 
   function handleFileChange(index: number, event: ChangeEvent<HTMLInputElement>) {
     const nextFile = event.target.files?.[0] ?? null;
@@ -77,17 +83,39 @@ export default function UploadPage() {
     );
 
     setError("");
-    setMessage("");
+  }
+
+  function validateBeforeSubmit() {
+    const missingHealthFields = HEALTH_FIELDS.filter(
+      (field) => !healthForm[field.key].trim(),
+    ).map((field) => field.label);
+
+    if (missingHealthFields.length > 0) {
+      return `Cannot run the recipe demo yet. Please complete these health check items: ${missingHealthFields.join(", ")}.`;
+    }
+
+    if (selectedCount !== 3) {
+      return "Cannot run the recipe demo yet. Please upload exactly 3 images.";
+    }
+
+    return "";
   }
 
   async function handleSubmit() {
-    if (selectedCount !== 3) {
-      setError("Please select exactly 3 images before submitting.");
-      setRecipe("");
+    const validationError = validateBeforeSubmit();
+
+    if (validationError) {
+      setError(validationError);
+      setRecipeResult(null);
+      setStatusMessage("");
       return;
     }
 
     const formData = new FormData();
+    formData.append("current_condition", healthForm.currentCondition.trim());
+    formData.append("dietary_notes", healthForm.dietaryNotes.trim());
+    formData.append("craving", healthForm.craving.trim());
+
     slots.forEach((slot) => {
       if (slot.file) {
         formData.append("files", slot.file);
@@ -96,7 +124,7 @@ export default function UploadPage() {
 
     setIsSubmitting(true);
     setError("");
-    setMessage("");
+    setStatusMessage("");
 
     try {
       const response = await fetch(`${API_BASE_URL}/recipe`, {
@@ -104,19 +132,23 @@ export default function UploadPage() {
         body: formData,
       });
 
-      const data = (await response.json()) as RecipeResponse | { detail?: string };
+      const data = (await response.json()) as
+        | RecipeHistoryItem
+        | {
+            detail?: string;
+          };
 
       if (!response.ok) {
-        setRecipe("");
-        setError(data.detail ?? "Failed to get the recipe.");
+        setRecipeResult(null);
+        setError(data.detail ?? "Failed to create the recipe result.");
         return;
       }
 
-      const result = data as RecipeResponse;
-      setRecipe(result.recipe);
-      setMessage(`${result.message} Uploaded: ${result.filenames.join(", ")}`);
+      const result = data as RecipeHistoryItem;
+      setRecipeResult(result);
+      setStatusMessage(`${result.message} Saved as history item ${result.id.slice(0, 8)}.`);
     } catch {
-      setRecipe("");
+      setRecipeResult(null);
       setError("Could not connect to the backend. Start FastAPI on http://localhost:8000.");
     } finally {
       setIsSubmitting(false);
@@ -124,73 +156,77 @@ export default function UploadPage() {
   }
 
   return (
-    <section className="grid gap-6 lg:grid-cols-[1.05fr_0.95fr]">
-      <div className="rounded-[2rem] border border-[var(--border)] bg-[var(--panel)] p-6 shadow-sm backdrop-blur sm:p-8">
-        <p className="text-sm uppercase tracking-[0.3em] text-[var(--accent)]">
-          Sample Input
+    <section className="mx-auto max-w-4xl rounded-[2rem] border border-[var(--border)] bg-[var(--panel)] p-6 shadow-[0_24px_80px_rgba(255,122,24,0.12)] sm:p-8">
+      <div className="border-b border-[var(--border)] pb-6">
+        <p className="text-sm font-semibold uppercase tracking-[0.28em] text-[var(--accent-strong)]">
+          Recipe Demo
         </p>
-        <h1 className="mt-3 text-3xl font-semibold">Three-image recipe demo</h1>
-        <p className="mt-3 text-sm leading-6 text-black/70">
-          The backend serves the bundled sample files from `example_image/`.
-          Use these three images to test the first MVP flow.
+        <h1 className="mt-4 text-3xl font-semibold leading-tight sm:text-4xl">
+          Health-aware image upload recipe flow
+        </h1>
+        <p className="mt-4 max-w-3xl text-sm leading-7 text-[var(--muted)]">
+          Fill in the health check, upload three images, and run the demo. The
+          backend is connected and returns the predefined English miso soup recipe
+          below the button. For testing, you can use the image files in
+          `example_image/`.
         </p>
+      </div>
 
-        <div className="mt-8 grid gap-4 sm:grid-cols-3">
-          {SAMPLE_IMAGES.map((image) => (
-            <article
-              key={image.src}
-              className="overflow-hidden rounded-[1.5rem] border border-[var(--border)] bg-white/70"
+      <div className="mt-8">
+        <h2 className="text-xl font-semibold">Health check</h2>
+        <div className="mt-4 grid gap-4">
+          {HEALTH_FIELDS.map((field) => (
+            <label
+              key={field.key}
+              className="rounded-[1.5rem] border border-[var(--border)] bg-white/78 p-4"
             >
-              <img
-                src={image.src}
-                alt={image.label}
-                className="h-48 w-full object-cover"
-              />
-              <div className="px-4 py-3">
-                <p className="text-sm font-medium">{image.label}</p>
+              <div className="text-sm font-semibold text-[var(--accent-strong)]">
+                {field.label}
               </div>
-            </article>
+              <textarea
+                value={healthForm[field.key]}
+                onChange={(event) => handleFieldChange(field.key, event.target.value)}
+                placeholder={field.placeholder}
+                rows={3}
+                className="mt-3 w-full resize-none rounded-[1rem] border border-[var(--border)] bg-[#fffaf5] px-4 py-3 text-sm leading-6 text-[var(--foreground)] outline-none transition focus:border-[var(--border-strong)]"
+              />
+            </label>
           ))}
         </div>
       </div>
 
-      <div className="rounded-[2rem] border border-[var(--border)] bg-[var(--panel)] p-6 shadow-sm backdrop-blur sm:p-8">
-        <p className="text-sm uppercase tracking-[0.3em] text-[var(--accent)]">
-          Upload
-        </p>
-        <h2 className="mt-3 text-3xl font-semibold">Send exactly 3 images</h2>
-        <p className="mt-3 text-sm leading-6 text-black/70">
-          No AI runs here. The backend only checks that three images were sent,
-          then returns a fixed English recipe for miso soup.
-        </p>
-
-        <div className="mt-8 grid gap-4">
+      <div className="mt-8">
+        <h2 className="text-xl font-semibold">Upload three images</h2>
+        <div className="mt-4 grid gap-4">
           {slots.map((slot, index) => (
             <label
-              key={`slot-${index}`}
-              className="flex cursor-pointer items-center gap-4 rounded-[1.5rem] border border-dashed border-[var(--accent)]/40 bg-white/60 p-4"
+              key={`image-slot-${index}`}
+              className="flex cursor-pointer items-center gap-4 rounded-[1.5rem] border border-dashed border-[var(--border-strong)] bg-white/78 p-4 transition hover:bg-white"
             >
-              <div className="h-20 w-20 overflow-hidden rounded-2xl bg-[#e5dcc9]">
+              <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-[1.25rem] bg-[#ffe1c0]">
                 {slot.previewUrl ? (
                   <img
                     src={slot.previewUrl}
-                    alt={`Selected preview ${index + 1}`}
+                    alt={`Preview ${index + 1}`}
                     className="h-full w-full object-cover"
                   />
                 ) : (
-                  <div className="flex h-full items-center justify-center text-xs text-black/45">
-                    Empty
-                  </div>
+                  <span className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--accent-strong)]">
+                    Image {index + 1}
+                  </span>
                 )}
               </div>
-
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium">Image {index + 1}</p>
-                <p className="truncate text-sm text-black/60">
+                <div className="text-sm font-semibold text-[var(--foreground)]">
+                  Upload slot {index + 1}
+                </div>
+                <div className="truncate text-sm text-[var(--muted)]">
                   {slot.file?.name ?? "Choose one image file"}
-                </p>
+                </div>
               </div>
-
+              <div className="rounded-full bg-[#fff1df] px-4 py-2 text-sm font-semibold text-[var(--accent-strong)]">
+                Select File
+              </div>
               <input
                 type="file"
                 accept="image/*"
@@ -200,37 +236,39 @@ export default function UploadPage() {
             </label>
           ))}
         </div>
+        <p className="mt-3 text-sm text-[var(--muted)]">{selectedCount} / 3 images selected</p>
+      </div>
 
-        <div className="mt-4 text-sm text-black/60">{selectedCount} / 3 selected</div>
-
+      <div className="mt-8">
         <button
           type="button"
           onClick={handleSubmit}
-          className="mt-6 w-full rounded-full bg-[var(--accent-strong)] px-5 py-3 text-sm font-medium text-white disabled:opacity-50"
           disabled={isSubmitting}
+          className="inline-flex w-full items-center justify-center rounded-full bg-[linear-gradient(180deg,#ff9936_0%,#ff7a18_100%)] px-5 py-4 text-sm font-semibold text-white shadow-[0_18px_45px_rgba(255,122,24,0.24)] disabled:opacity-60"
         >
-          {isSubmitting ? "Submitting..." : "Show Fixed Recipe"}
+          {isSubmitting ? "Running Demo..." : "Run Recipe Demo"}
         </button>
 
         {error ? (
-          <p className="mt-4 rounded-2xl border border-[#c96b5a]/30 bg-[#fff4f1] px-4 py-3 text-sm text-[#8d3c30]">
-            {error}
+          <p className="mt-4 text-sm leading-6 text-[var(--error)] sm:text-base">{error}</p>
+        ) : null}
+
+        {statusMessage ? (
+          <p className="mt-4 rounded-[1.25rem] border border-[var(--border)] bg-white/78 px-4 py-3 text-sm text-[var(--muted)]">
+            {statusMessage}
           </p>
         ) : null}
 
-        {message ? (
-          <p className="mt-4 rounded-2xl border border-[var(--border)] bg-white/70 px-4 py-3 text-sm text-black/70">
-            {message}
-          </p>
-        ) : null}
-
-        {recipe ? (
-          <div className="mt-6 rounded-[1.5rem] border border-[var(--border)] bg-white/80 p-5">
-            <p className="text-sm uppercase tracking-[0.3em] text-[var(--accent)]">
-              Output
+        {recipeResult ? (
+          <div className="mt-6 rounded-[1.75rem] border border-[var(--border)] bg-white/82 p-5">
+            <p className="text-sm font-semibold uppercase tracking-[0.24em] text-[var(--accent-strong)]">
+              Recipe Output
             </p>
-            <pre className="mt-4 whitespace-pre-wrap text-sm leading-7 text-black/80">
-              {recipe}
+            <p className="mt-3 text-sm text-[var(--muted)]">
+              Generated at {new Date(recipeResult.created_at).toLocaleString()}
+            </p>
+            <pre className="mt-5 whitespace-pre-wrap text-sm leading-7 text-[var(--foreground)]">
+              {recipeResult.recipe}
             </pre>
           </div>
         ) : null}

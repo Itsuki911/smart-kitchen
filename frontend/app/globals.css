@@ -1,12 +1,15 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f6f2e9;
-  --foreground: #18230f;
-  --panel: rgba(255, 255, 255, 0.74);
-  --border: rgba(24, 35, 15, 0.1);
-  --accent: #4f6f52;
-  --accent-strong: #2f4a32;
+  --background: #fff5ea;
+  --foreground: #4d2400;
+  --muted: #7d5430;
+  --panel: rgba(255, 250, 245, 0.82);
+  --border: rgba(221, 109, 13, 0.16);
+  --border-strong: rgba(221, 109, 13, 0.28);
+  --accent: #ff7a18;
+  --accent-strong: #cf5600;
+  --error: #c53030;
 }
 
 * {
@@ -15,8 +18,9 @@
 
 html {
   background:
-    radial-gradient(circle at top, rgba(223, 236, 208, 0.9), transparent 35%),
-    linear-gradient(180deg, #f8f6ef 0%, #efe8d8 100%);
+    radial-gradient(circle at top left, rgba(255, 189, 102, 0.44), transparent 28%),
+    radial-gradient(circle at top right, rgba(255, 142, 61, 0.22), transparent 24%),
+    linear-gradient(180deg, #fff9f1 0%, #ffe9d0 100%);
 }
 
 body {
@@ -24,7 +28,7 @@ body {
   min-height: 100vh;
   color: var(--foreground);
   background: transparent;
-  font-family: Georgia, "Times New Roman", serif;
+  font-family: "Avenir Next", "Trebuchet MS", "Segoe UI", sans-serif;
 }
 
 a {
@@ -33,6 +37,21 @@ a {
 }
 
 button,
-input {
+input,
+textarea {
   font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+img {
+  display: block;
+  max-width: 100%;
+}
+
+::selection {
+  color: white;
+  background: rgba(255, 122, 24, 0.72);
 }
