@@ -4,7 +4,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Smart Kitchen",
-  description: "MVP interface for a smart kitchen AI system.",
+  description: "Upload three images and display a fixed English miso soup recipe.",
 };
 
 export default function RootLayout({
@@ -23,7 +23,7 @@ export default function RootLayout({
               </Link>
               <nav className="flex items-center gap-4 text-sm">
                 <Link href="/">Home</Link>
-                <Link href="/upload">Upload</Link>
+                <Link href="/upload">Demo</Link>
               </nav>
             </div>
           </header>
