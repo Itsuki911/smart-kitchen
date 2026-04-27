@@ -1,6 +1,7 @@
 "use client";
 
 import { ChangeEvent, useMemo, useState } from "react";
+import { getApiBaseUrl, getBackendConnectionHint } from "@/lib/api";
 
 type UploadSlot = {
   file: File | null;
@@ -17,7 +18,6 @@ type RecipeHistoryItem = {
   title: string;
 };
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
 const HEALTH_FIELDS = [
   {
     key: "currentCondition",
@@ -41,6 +41,7 @@ function createEmptySlots(): UploadSlot[] {
 }
 
 export default function UploadPage() {
+  const apiBaseUrl = getApiBaseUrl();
   const [healthForm, setHealthForm] = useState({
     currentCondition: "",
     dietaryNotes: "",
@@ -127,7 +128,7 @@ export default function UploadPage() {
     setStatusMessage("");
 
     try {
-      const response = await fetch(`${API_BASE_URL}/recipe`, {
+      const response = await fetch(`${apiBaseUrl}/recipe`, {
         method: "POST",
         body: formData,
       });
@@ -149,7 +150,7 @@ export default function UploadPage() {
       setStatusMessage(`${result.message} Saved as history item ${result.id.slice(0, 8)}.`);
     } catch {
       setRecipeResult(null);
-      setError("Could not connect to the backend. Start FastAPI on http://localhost:8000.");
+      setError(getBackendConnectionHint());
     } finally {
       setIsSubmitting(false);
     }

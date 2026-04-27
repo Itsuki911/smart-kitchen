@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { getApiBaseUrl, getBackendConnectionHint } from "@/lib/api";
 
 type RecipeHistoryItem = {
   created_at: string;
@@ -17,9 +18,8 @@ type HistoryResponse = {
   items: RecipeHistoryItem[];
 };
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
-
 export default function HistoryPage() {
+  const apiBaseUrl = getApiBaseUrl();
   const [items, setItems] = useState<RecipeHistoryItem[]>([]);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(true);
@@ -27,7 +27,7 @@ export default function HistoryPage() {
   useEffect(() => {
     async function loadHistory() {
       try {
-        const response = await fetch(`${API_BASE_URL}/history`);
+        const response = await fetch(`${apiBaseUrl}/history`);
         const data = (await response.json()) as HistoryResponse | { detail?: string };
 
         if (!response.ok) {
@@ -37,14 +37,14 @@ export default function HistoryPage() {
 
         setItems((data as HistoryResponse).items);
       } catch {
-        setError("Could not connect to the backend. Start FastAPI on http://localhost:8000.");
+        setError(getBackendConnectionHint());
       } finally {
         setIsLoading(false);
       }
     }
 
     void loadHistory();
-  }, []);
+  }, [apiBaseUrl]);
 
   return (
     <section className="mx-auto max-w-5xl rounded-[2rem] border border-[var(--border)] bg-[var(--panel)] p-6 shadow-[0_24px_80px_rgba(255,122,24,0.12)] sm:p-8">

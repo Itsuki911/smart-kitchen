@@ -28,6 +28,16 @@ Instructions:
 5. Return the dissolved miso to the pot and mix gently.
 6. Turn off the heat before the soup starts to boil, then finish with sliced green onions.
 """
+LOCAL_DEV_ORIGIN_REGEX = (
+    r"^https?://("
+    r"localhost|"
+    r"127\.0\.0\.1|"
+    r"0\.0\.0\.0|"
+    r"10(?:\.\d{1,3}){3}|"
+    r"172\.(?:1[6-9]|2\d|3[0-1])(?:\.\d{1,3}){2}|"
+    r"192\.168(?:\.\d{1,3}){2}"
+    r")(?::3000)?$"
+)
 
 app.add_middleware(
     CORSMiddleware,
@@ -35,6 +45,7 @@ app.add_middleware(
         "http://localhost:3000",
         "http://127.0.0.1:3000",
     ],
+    allow_origin_regex=LOCAL_DEV_ORIGIN_REGEX,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
