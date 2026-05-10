@@ -12,8 +12,9 @@ export default function HomePage() {
         </h1>
         <p className="mt-5 max-w-2xl text-base leading-7 text-[var(--muted)]">
           This MVP accepts three uploaded images, collects a small health check,
-          and shows a predefined English miso soup recipe. It is designed as the
-          first step before adding AI-based recipe generation.
+          stores the run in Supabase, and shows a predefined English miso soup
+          recipe. It is designed as the first deployed step before adding
+          AI-based recipe generation through FastAPI.
         </p>
       </div>
 
@@ -24,7 +25,7 @@ export default function HomePage() {
           </p>
           <p className="mt-4 text-sm leading-7 text-[var(--muted)]">
             Upload three images, fill in three health-check fields, and receive
-            the current fixed recipe result from the backend.
+            the current fixed recipe result with persistent history storage.
           </p>
         </article>
 

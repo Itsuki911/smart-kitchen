@@ -1,25 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getApiBaseUrl, getBackendConnectionHint } from "@/lib/api";
-
-type RecipeHistoryItem = {
-  created_at: string;
-  filenames: string[];
-  health_check: Record<string, string>;
-  id: string;
-  message: string;
-  recipe: string;
-  title: string;
-};
-
-type HistoryResponse = {
-  count: number;
-  items: RecipeHistoryItem[];
-};
+import { getApiErrorHint } from "@/lib/api";
+import { HistoryResponse, RecipeHistoryItem } from "@/lib/recipe";
 
 export default function HistoryPage() {
-  const apiBaseUrl = getApiBaseUrl();
   const [items, setItems] = useState<RecipeHistoryItem[]>([]);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(true);
@@ -27,24 +12,25 @@ export default function HistoryPage() {
   useEffect(() => {
     async function loadHistory() {
       try {
-        const response = await fetch(`${apiBaseUrl}/history`);
+        const response = await fetch("/api/history");
         const data = (await response.json()) as HistoryResponse | { detail?: string };
 
         if (!response.ok) {
-          setError(data.detail ?? "Failed to load history.");
+          const errorResponse = data as { detail?: string };
+          setError(errorResponse.detail ?? "Failed to load history.");
           return;
         }
 
         setItems((data as HistoryResponse).items);
       } catch {
-        setError(getBackendConnectionHint());
+        setError(getApiErrorHint());
       } finally {
         setIsLoading(false);
       }
     }
 
     void loadHistory();
-  }, [apiBaseUrl]);
+  }, []);
 
   return (
     <section className="mx-auto max-w-5xl rounded-[2rem] border border-[var(--border)] bg-[var(--panel)] p-6 shadow-[0_24px_80px_rgba(255,122,24,0.12)] sm:p-8">
@@ -55,8 +41,8 @@ export default function HistoryPage() {
         <h1 className="mt-4 text-3xl font-semibold sm:text-4xl">Previous recipe runs</h1>
         <p className="mt-4 max-w-3xl text-sm leading-7 text-[var(--muted)]">
           This page shows the recipe results previously generated from the upload
-          page. History is stored in backend memory, so it resets when the FastAPI
-          server restarts.
+          page. History now loads from Supabase-backed storage, so successful runs
+          can remain available after restarts and redeploys.
         </p>
       </div>
 
@@ -107,7 +93,9 @@ export default function HistoryPage() {
                 <p className="text-sm font-semibold text-[var(--accent-strong)]">Uploaded files</p>
                 <ul className="mt-3 grid gap-2 text-sm text-[var(--muted)]">
                   {item.filenames.map((filename) => (
-                    <li key={filename}>{filename}</li>
+                    <li key={filename} className="break-all">
+                      {filename}
+                    </li>
                   ))}
                 </ul>
               </div>

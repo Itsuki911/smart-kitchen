@@ -1,48 +1,26 @@
 "use client";
 
 import { ChangeEvent, useMemo, useState } from "react";
-import { getApiBaseUrl, getBackendConnectionHint } from "@/lib/api";
+import { getApiErrorHint } from "@/lib/api";
+import {
+  HEALTH_FIELDS,
+  HealthFormState,
+  RecipeHistoryItem,
+  buildHealthCheck,
+  validateHealthCheck,
+} from "@/lib/recipe";
 
 type UploadSlot = {
   file: File | null;
   previewUrl: string | null;
 };
 
-type RecipeHistoryItem = {
-  created_at: string;
-  filenames: string[];
-  health_check: Record<string, string>;
-  id: string;
-  message: string;
-  recipe: string;
-  title: string;
-};
-
-const HEALTH_FIELDS = [
-  {
-    key: "currentCondition",
-    label: "Current condition",
-    placeholder: "Example: I want something warm and light because I feel tired today.",
-  },
-  {
-    key: "dietaryNotes",
-    label: "Dietary notes",
-    placeholder: "Example: Please avoid spicy food and keep the seasoning gentle.",
-  },
-  {
-    key: "craving",
-    label: "Today's craving",
-    placeholder: "Example: I want a comforting soup with a Japanese home-cooking feeling.",
-  },
-] as const;
-
 function createEmptySlots(): UploadSlot[] {
   return Array.from({ length: 3 }, () => ({ file: null, previewUrl: null }));
 }
 
 export default function UploadPage() {
-  const apiBaseUrl = getApiBaseUrl();
-  const [healthForm, setHealthForm] = useState({
+  const [healthForm, setHealthForm] = useState<HealthFormState>({
     currentCondition: "",
     dietaryNotes: "",
     craving: "",
@@ -87,12 +65,10 @@ export default function UploadPage() {
   }
 
   function validateBeforeSubmit() {
-    const missingHealthFields = HEALTH_FIELDS.filter(
-      (field) => !healthForm[field.key].trim(),
-    ).map((field) => field.label);
+    const validationError = validateHealthCheck(buildHealthCheck(healthForm));
 
-    if (missingHealthFields.length > 0) {
-      return `Cannot run the recipe demo yet. Please complete these health check items: ${missingHealthFields.join(", ")}.`;
+    if (validationError) {
+      return `Cannot run the recipe demo yet. ${validationError}`;
     }
 
     if (selectedCount !== 3) {
@@ -128,7 +104,7 @@ export default function UploadPage() {
     setStatusMessage("");
 
     try {
-      const response = await fetch(`${apiBaseUrl}/recipe`, {
+      const response = await fetch("/api/recipe", {
         method: "POST",
         body: formData,
       });
@@ -140,8 +116,9 @@ export default function UploadPage() {
           };
 
       if (!response.ok) {
+        const errorResponse = data as { detail?: string };
         setRecipeResult(null);
-        setError(data.detail ?? "Failed to create the recipe result.");
+        setError(errorResponse.detail ?? "Failed to create the recipe result.");
         return;
       }
 
@@ -150,7 +127,7 @@ export default function UploadPage() {
       setStatusMessage(`${result.message} Saved as history item ${result.id.slice(0, 8)}.`);
     } catch {
       setRecipeResult(null);
-      setError(getBackendConnectionHint());
+      setError(getApiErrorHint());
     } finally {
       setIsSubmitting(false);
     }
@@ -167,9 +144,9 @@ export default function UploadPage() {
         </h1>
         <p className="mt-4 max-w-3xl text-sm leading-7 text-[var(--muted)]">
           Fill in the health check, upload three images, and run the demo. The
-          backend is connected and returns the predefined English miso soup recipe
-          below the button. For testing, you can use the image files in
-          `example_image/`.
+          recipe result and image metadata are saved through Supabase-backed API
+          routes so the history can persist across deployments. For testing, you
+          can use the image files in `example_image/`.
         </p>
       </div>
 
@@ -202,9 +179,9 @@ export default function UploadPage() {
           {slots.map((slot, index) => (
             <label
               key={`image-slot-${index}`}
-              className="flex cursor-pointer items-center gap-4 rounded-[1.5rem] border border-dashed border-[var(--border-strong)] bg-white/78 p-4 transition hover:bg-white"
+              className="flex cursor-pointer flex-col gap-4 rounded-[1.5rem] border border-dashed border-[var(--border-strong)] bg-white/78 p-4 transition hover:bg-white sm:flex-row sm:items-center"
             >
-              <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-[1.25rem] bg-[#ffe1c0]">
+              <div className="flex h-28 w-full items-center justify-center overflow-hidden rounded-[1.25rem] bg-[#ffe1c0] sm:h-20 sm:w-20">
                 {slot.previewUrl ? (
                   <img
                     src={slot.previewUrl}
@@ -221,11 +198,11 @@ export default function UploadPage() {
                 <div className="text-sm font-semibold text-[var(--foreground)]">
                   Upload slot {index + 1}
                 </div>
-                <div className="truncate text-sm text-[var(--muted)]">
+                <div className="break-all text-sm text-[var(--muted)]">
                   {slot.file?.name ?? "Choose one image file"}
                 </div>
               </div>
-              <div className="rounded-full bg-[#fff1df] px-4 py-2 text-sm font-semibold text-[var(--accent-strong)]">
+              <div className="w-full rounded-full bg-[#fff1df] px-4 py-3 text-center text-sm font-semibold text-[var(--accent-strong)] sm:w-auto sm:py-2">
                 Select File
               </div>
               <input
@@ -267,6 +244,9 @@ export default function UploadPage() {
             </p>
             <p className="mt-3 text-sm text-[var(--muted)]">
               Generated at {new Date(recipeResult.created_at).toLocaleString()}
+            </p>
+            <p className="mt-2 break-all text-sm text-[var(--muted)]">
+              Files: {recipeResult.filenames.join(", ")}
             </p>
             <pre className="mt-5 whitespace-pre-wrap text-sm leading-7 text-[var(--foreground)]">
               {recipeResult.recipe}
